@@ -60,11 +60,21 @@ async def send_ble(client, frame, label):
 
 async def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--ssid", required=True)
-    ap.add_argument("--pass", dest="pwd", required=True)
+    ap.add_argument("--ssid")
+    ap.add_argument("--pass", dest="pwd")
     ap.add_argument("--host", required=True, help="Home Assistant host IP")
     ap.add_argument("--port", type=int, default=9988)
+    ap.add_argument("--env", help=".env dosyasından SSID/PASS oku (WIFI_SSID/WIFI_PASS)")
     a = ap.parse_args()
+    if a.env and (not a.ssid or not a.pwd):
+        for line in open(a.env):
+            line = line.strip()
+            if line.startswith("WIFI_SSID="):
+                a.ssid = a.ssid or line.split("=", 1)[1]
+            elif line.startswith("WIFI_PASS="):
+                a.pwd = a.pwd or line.split("=", 1)[1]
+    if not a.ssid or not a.pwd:
+        sys.exit("SSID/PASS gerekli (--ssid/--pass veya --env <.env yolu>)")
 
     dev = await find_lamp()
     if not dev:
