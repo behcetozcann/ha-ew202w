@@ -1,0 +1,16 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "EW202W Sleep Light",
+        "description": "Local TCP port the lamp connects to. Use the BLE provisioning tool to point the lamp at this Home Assistant server's IP and this port.",
+        "data": {
+          "port": "TCP port"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "EW202W is already configured."
+    }
+  }
+}

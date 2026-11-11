@@ -1,0 +1,12 @@
+{
+  "domain": "ew202w",
+  "name": "EW202W Uyku Işığı (Sleepace/Vestel)",
+  "codeowners": ["@behcetozcann"],
+  "config_flow": true,
+  "documentation": "https://github.com/behcetozcann/ha-ew202w",
+  "integration_type": "hub",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/behcetozcann/ha-ew202w/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

@@ -1,0 +1,16 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "EW202W Uyku Işığı",
+        "description": "Lambanın bağlanacağı yerel TCP portu. Lambayı BLE provizyon aracıyla bu Home Assistant sunucusunun IP'sine ve bu porta yönlendirin.",
+        "data": {
+          "port": "TCP portu"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "EW202W zaten kurulu."
+    }
+  }
+}
