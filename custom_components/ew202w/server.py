@@ -11,6 +11,7 @@ from collections.abc import Callable
 from . import protocol as P
 
 _LOGGER = logging.getLogger(__name__)
+STOP_TIMEOUT_SECONDS = 5
 
 
 class DeviceConn:
@@ -33,23 +34,27 @@ class EW202WServer:
         self._on_update = on_update
         self._server: asyncio.AbstractServer | None = None
         self.devices: dict[str, DeviceConn] = {}
+        self._writers: set[asyncio.StreamWriter] = set()
 
     async def start(self) -> None:
         self._server = await asyncio.start_server(self._handle, "0.0.0.0", self._port)
         _LOGGER.info("EW202W TCP sunucusu dinliyor :%s", self._port)
 
     async def stop(self) -> None:
+        # Önce açık bağlantılar kapatılır: wait_closed() bağlantılar bitmeden dönmez,
+        # sıra ters olursa entegrasyonun kaldırılması/yeniden yüklenmesi sonsuza dek bekler.
         if self._server:
             self._server.close()
+        for writer in list(self._writers):
             try:
-                await self._server.wait_closed()
+                writer.close()
             except Exception:  # noqa: BLE001
                 pass
-        for dev in self.devices.values():
+        if self._server:
             try:
-                dev.writer.close()
+                await asyncio.wait_for(self._server.wait_closed(), STOP_TIMEOUT_SECONDS)
             except Exception:  # noqa: BLE001
-                pass
+                _LOGGER.warning("EW202W sunucusu %s sn içinde kapanmadı", STOP_TIMEOUT_SECONDS)
         self.devices.clear()
 
     def is_available(self, device_id: str) -> bool:
@@ -82,6 +87,7 @@ class EW202WServer:
         peer = writer.get_extra_info("peername")
         device_id: str | None = None
         buf = bytearray()
+        self._writers.add(writer)
         try:
             while True:
                 data = await reader.read(1024)
@@ -115,6 +121,7 @@ class EW202WServer:
                 self.devices[device_id].available = False
                 _LOGGER.info("EW202W koptu: %s", device_id)
                 self._on_update(device_id)
+            self._writers.discard(writer)
             try:
                 writer.close()
             except Exception:  # noqa: BLE001
