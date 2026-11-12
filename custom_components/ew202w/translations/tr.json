@@ -17,7 +17,7 @@
     "step": {
       "init": {
         "title": "Ses adları",
-        "description": "Her satır: <lamba kimliği>:<ses numarası>=<ad>. Örnek: abc123lampid:31132=Beyaz Gürültü",
+        "description": "Her satıra bir ad yazın. Biçim: LAMBA_KIMLIGI:SES_NUMARASI=AD — örnek: abc123lampid:31132=Beyaz Gürültü",
         "data": {
           "sound_names": "Lambaya özel ses adları"
         }

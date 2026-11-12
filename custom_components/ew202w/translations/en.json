@@ -17,7 +17,7 @@
     "step": {
       "init": {
         "title": "Sound names",
-        "description": "One per line: <lamp id>:<sound number>=<name>. Example: abc123lampid:31132=White Noise",
+        "description": "One name per line. Format: LAMP_ID:SOUND_NUMBER=NAME — example: abc123lampid:31132=White Noise",
         "data": {
           "sound_names": "Per-lamp sound names"
         }
