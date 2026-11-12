@@ -106,13 +106,16 @@ class EW202WLight(LightEntity):
                 self._brightness = round(state["brightness"] / 100 * 255)
             if not self._is_on:
                 self._effect = None
+            self._server.mix(self._device_id)["light_on"] = self._is_on
         self.async_write_ha_state()
 
     @callback
     def _sound_starting(self) -> None:
-        """Stok yazılımda her ışık komutu sesi keser; ses başlarken animasyonu durdur."""
+        """Hareketli efekt karesi sesi keser; ses başlarken efekt durur, sabit renk kalır."""
         self._stop_anim()
         self._effect = None
+        self._server.mix(self._device_id).update(
+            light_on=self._is_on, brightness=self._bri_pct(), rgbw=tuple(self._rgbw))
 
     async def async_added_to_hass(self) -> None:
         self.async_on_remove(async_dispatcher_connect(
@@ -164,9 +167,11 @@ class EW202WLight(LightEntity):
                 self.async_write_ha_state()
                 return
             effect = self._effect
+        mix = self._server.mix(self._device_id)
         if effect:
             self._stop_anim()
             self._effect = effect
+            mix.update(light_on=True, sound_on=False)  # efekt komutları sesi keser
             if effect == effects.BUILTIN_FLOW:
                 body = P.light_body(P.LIGHT_ON, self._bri_pct(), P.COLOR_FLOW)
                 if await self._server.send_light(self._device_id, body):
@@ -184,14 +189,25 @@ class EW202WLight(LightEntity):
         self._stop_anim()
         self._effect = None
         r, g, b, w = self._rgbw
-        if await self._send(r, g, b, w, self._bri_pct()):
+        mix.update(light_on=True, brightness=self._bri_pct(), rgbw=tuple(self._rgbw))
+        if mix["sound_on"]:  # ses çalıyor: sesi kesmeyen sahne komutu
+            sent = await self._server.send_scene(self._device_id)
+        else:
+            sent = await self._send(r, g, b, w, self._bri_pct())
+        if sent:
             self._is_on = True
             self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs) -> None:
         self._stop_anim()
         self._effect = None
-        body = P.light_body(P.LIGHT_OFF, 0, P.COLOR_CUSTOM, 0, 0, 0, 0)
-        if await self._server.send_light(self._device_id, body):
+        mix = self._server.mix(self._device_id)
+        mix["light_on"] = False
+        if mix["sound_on"]:
+            sent = await self._server.send_scene(self._device_id)
+        else:
+            body = P.light_body(P.LIGHT_OFF, 0, P.COLOR_CUSTOM, 0, 0, 0, 0)
+            sent = await self._server.send_light(self._device_id, body)
+        if sent:
             self._is_on = False
             self.async_write_ha_state()

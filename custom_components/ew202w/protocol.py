@@ -23,7 +23,7 @@ MSG_SET_SERVER = 5378
 MSG_LIGHT = 5394
 MSG_REGISTER = 1028
 MSG_TIME = 513
-MSG_MUSIC = 5398
+MSG_SCENE = 5392          # ışık + ses birlikte (uyku yardımı sahnesi)
 MSG_WORK_MODE = 5424      # lambanın durum bildirimi (POST)
 MSG_UPDATE = 1284         # yazılım güncelleme; lamba yalnız POST (ftype=1) olarak işler
 
@@ -36,9 +36,6 @@ LIGHT_BRIGHTNESS = 2
 COLOR_CUSTOM = 255  # colorId=255 => RGBW serbest renk
 COLOR_FLOW = 9      # colorId=9 => lambanın dahili akış (renk döngüsü) modu
 
-# müzik işlemi (msgType 5398)
-MUSIC_STOP = 0
-MUSIC_PLAY = 1     # 0 dışındaki her işlem "ses düzeyini ayarla + verilen sesi baştan çal" demektir
 MAX_VOLUME = 16
 UPDATE_BODY_SIZE = 133
 
@@ -158,10 +155,19 @@ def server_address_body(ip: str, port: int) -> bytes:
     return bytes(b)
 
 
-def music_body(operation: int, music_id: int = 0, volume: int = 0) -> bytes:
-    """Müzik komutu gövdesi (msgType 5398). music_id = lambadaki /spiffs/<id>.MP3."""
-    return (bytes([operation & 0xFF]) + struct.pack(">H", music_id & 0xFFFF)
-            + bytes([max(0, min(int(volume), MAX_VOLUME))]))
+def scene_body(sound_on: bool, music_id: int, volume: int, light_on: bool,
+               brightness: int, rgbw: tuple[int, int, int, int], stop_minutes: int = 0) -> bytes:
+    """Işık + ses sahnesi (msgType 5392).
+
+    Aynı ses numarası yeniden gönderilirse ses baştan başlamaz; böylece ses çalarken renk,
+    parlaklık ve ses düzeyi değiştirilebilir. stop_minutes=0 otomatik durdurmayı kapatır.
+    """
+    red, green, blue, white = (value & 0xFF for value in rgbw)
+    return (bytes([1 if sound_on else 0]) + struct.pack(">H", music_id & 0xFFFF)
+            + bytes([max(0, min(int(volume), MAX_VOLUME)), 1,
+                     1 if light_on else 0, max(1, min(int(brightness), 100)),
+                     red, green, blue, white, 0])
+            + struct.pack(">H", stop_minutes & 0xFFFF))
 
 
 def update_body(url: str, current_version: int = 146, target_version: int = 147,

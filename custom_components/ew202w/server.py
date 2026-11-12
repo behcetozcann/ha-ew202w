@@ -12,6 +12,7 @@ from . import protocol as P
 
 _LOGGER = logging.getLogger(__name__)
 STOP_TIMEOUT_SECONDS = 5
+DEFAULT_VOLUME = 6
 
 
 class DeviceConn:
@@ -35,6 +36,7 @@ class EW202WServer:
         self._server: asyncio.AbstractServer | None = None
         self.devices: dict[str, DeviceConn] = {}
         self._writers: set[asyncio.StreamWriter] = set()
+        self._mix: dict[str, dict] = {}
 
     async def start(self) -> None:
         self._server = await asyncio.start_server(self._handle, "0.0.0.0", self._port)
@@ -64,6 +66,19 @@ class EW202WServer:
     def state(self, device_id: str) -> dict:
         dev = self.devices.get(device_id)
         return dev.state if dev else {}
+
+    def mix(self, device_id: str) -> dict:
+        """Lambanın istenen ışık + ses durumu; ışık ve ses varlıkları bunu paylaşır."""
+        return self._mix.setdefault(device_id, {
+            "light_on": False, "brightness": 100, "rgbw": (0, 0, 0, 255),
+            "sound_on": False, "music_id": 0, "volume": DEFAULT_VOLUME})
+
+    async def send_scene(self, device_id: str) -> bool:
+        """Işığı ve sesi tek komutla uygular (birbirini kesmeden)."""
+        mix = self.mix(device_id)
+        body = P.scene_body(mix["sound_on"], mix["music_id"], mix["volume"],
+                            mix["light_on"], mix["brightness"], mix["rgbw"])
+        return await self.send(device_id, P.MSG_SCENE, body)
 
     async def send_light(self, device_id: str, body: bytes) -> bool:
         return await self.send(device_id, P.MSG_LIGHT, body)
@@ -105,6 +120,10 @@ class EW202WServer:
                         state = P.parse_work_mode(fr["content"])
                         if state and state != self.devices[device_id].state:
                             self.devices[device_id].state = state
+                            mix = self.mix(device_id)
+                            mix["sound_on"] = state["music_playing"]
+                            if state["music_playing"]:
+                                mix["music_id"] = state["sleep_aid_music_id"]
                             self._on_update(device_id)
                     # el sıkışma / saat / heartbeat yanıtı
                     resp = P.handshake_response(fr, self._tz_offset)

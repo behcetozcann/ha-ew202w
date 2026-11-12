@@ -15,8 +15,6 @@ from .const import (CONF_SOUND_NAMES, DOMAIN, SIGNAL_DEVICE_UPDATE, SIGNAL_NEW_D
                     SIGNAL_SOUND_START, sound_names)
 from .server import EW202WServer
 
-DEFAULT_VOLUME = 6
-
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
                             async_add_entities: AddEntitiesCallback) -> None:
@@ -55,7 +53,6 @@ class EW202WSoundPlayer(MediaPlayerEntity):
         self._attr_unique_id = f"ew202w_{device_id}_sound"
         self._attr_device_info = {"identifiers": {(DOMAIN, device_id)}}
         self._attr_source = self._attr_source_list[0]
-        self._volume = DEFAULT_VOLUME
         self._playing = False
 
     @property
@@ -68,7 +65,7 @@ class EW202WSoundPlayer(MediaPlayerEntity):
 
     @property
     def volume_level(self) -> float:
-        return self._volume / P.MAX_VOLUME
+        return self._server.mix(self._device_id)["volume"] / P.MAX_VOLUME
 
     @callback
     def _device_updated(self) -> None:
@@ -82,28 +79,27 @@ class EW202WSoundPlayer(MediaPlayerEntity):
             self.hass, SIGNAL_DEVICE_UPDATE.format(self._device_id),
             self._device_updated))
 
-    async def _send(self, operation: int, music_id: int = 0) -> bool:
-        body = P.music_body(operation, music_id, self._volume)
-        return await self._server.send(self._device_id, P.MSG_MUSIC, body)
+    async def _apply(self, sound_on: bool) -> None:
+        mix = self._server.mix(self._device_id)
+        mix["sound_on"] = sound_on
+        mix["music_id"] = self._sounds[self._attr_source]
+        if await self._server.send_scene(self._device_id):
+            self._playing = sound_on
+            self.async_write_ha_state()
 
     async def async_media_play(self) -> None:
         async_dispatcher_send(self.hass, SIGNAL_SOUND_START.format(self._device_id))
-        if await self._send(P.MUSIC_PLAY, self._sounds[self._attr_source]):
-            self._playing = True
-            self.async_write_ha_state()
+        await self._apply(True)
 
     async def async_media_stop(self) -> None:
-        if await self._send(P.MUSIC_STOP):
-            self._playing = False
-            self.async_write_ha_state()
+        await self._apply(False)
 
     async def async_select_source(self, source: str) -> None:
         self._attr_source = source
         await self.async_media_play()
 
     async def async_set_volume_level(self, volume: float) -> None:
-        """Lambada ayrı bir ses düzeyi komutu yok: çalan ses yeni düzeyle yeniden başlatılır."""
-        self._volume = max(1, round(volume * P.MAX_VOLUME))
+        self._server.mix(self._device_id)["volume"] = max(1, round(volume * P.MAX_VOLUME))
         if self._playing:
-            await self._send(P.MUSIC_PLAY, self._sounds[self._attr_source])
+            await self._server.send_scene(self._device_id)
         self.async_write_ha_state()

@@ -75,6 +75,16 @@ python tools/provision.py --ssid "YourWifi" --pass "YourPassword" --host 192.168
 - Sound sources are named `Ses <number>` by default. Per-lamp names can be set in the
   integration's options, one per line: `<lamp id>:<sound number>=<name>`.
 
+## New in 0.3.5
+
+- Sound and a fixed light colour now work together: both are applied with the lamp's
+  scene command (msgType 5392), so colour, brightness and volume can change while a
+  sound plays, without restarting it. Animated effects still stop the sound (each
+  effect frame is a plain light command, which the stock firmware treats as "end sleep aid").
+- A brightness change keeps the running effect.
+- Effect frames are sent at most every 0.6 s. The stock firmware writes every
+  colour/brightness change to flash, so very fast effects wear it for no visible gain.
+
 ## Credits
 
 Reverse engineering & integration by the community. Protocol notes in the project.
