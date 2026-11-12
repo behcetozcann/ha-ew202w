@@ -68,6 +68,13 @@ python tools/provision.py --ssid "YourWifi" --pass "YourPassword" --host 192.168
   signature, so only use an image you have validated; keep a UART backup.
 - `tools/provision.py --lamp <name>` targets one lamp when several are nearby.
 
+## New in 0.3.2
+
+- Fixed colors are no longer listed as effects; pick them from the light dialog's
+  favorite colors instead. The effect list now holds only animations.
+- Sound sources are named `Ses <number>` by default. Per-lamp names can be set in the
+  integration's options, one per line: `<lamp id>:<sound number>=<name>`.
+
 ## Credits
 
 Reverse engineering & integration by the community. Protocol notes in the project.

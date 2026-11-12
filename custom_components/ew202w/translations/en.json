@@ -12,5 +12,16 @@
     "abort": {
       "already_configured": "EW202W is already configured."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Sound names",
+        "description": "One per line: <lamp id>:<sound number>=<name>. Example: abc123lampid:31132=White Noise",
+        "data": {
+          "sound_names": "Per-lamp sound names"
+        }
+      }
+    }
   }
 }

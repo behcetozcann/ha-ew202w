@@ -12,5 +12,16 @@
     "abort": {
       "already_configured": "EW202W zaten kurulu."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Ses adları",
+        "description": "Her satır: <lamba kimliği>:<ses numarası>=<ad>. Örnek: abc123lampid:31132=Beyaz Gürültü",
+        "data": {
+          "sound_names": "Lambaya özel ses adları"
+        }
+      }
+    }
   }
 }

@@ -11,8 +11,8 @@ from homeassistant.helpers.dispatcher import (async_dispatcher_connect,
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import protocol as P
-from .const import (DOMAIN, SIGNAL_DEVICE_UPDATE, SIGNAL_NEW_DEVICE, SIGNAL_SOUND_START,
-                    SOUND_WHITE_NOISE, SOUNDS)
+from .const import (CONF_SOUND_NAMES, DOMAIN, SIGNAL_DEVICE_UPDATE, SIGNAL_NEW_DEVICE,
+                    SIGNAL_SOUND_START, sound_names)
 from .server import EW202WServer
 
 DEFAULT_VOLUME = 6
@@ -27,7 +27,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
     def _add(device_id: str) -> None:
         if device_id not in known:
             known.add(device_id)
-            async_add_entities([EW202WSoundPlayer(server, device_id)])
+            sounds = sound_names(entry.options.get(CONF_SOUND_NAMES, ""), device_id)
+            async_add_entities([EW202WSoundPlayer(server, device_id, sounds)])
 
     entry.async_on_unload(async_dispatcher_connect(hass, SIGNAL_NEW_DEVICE, _add))
     for device_id in list(server.devices):
@@ -40,18 +41,20 @@ class EW202WSoundPlayer(MediaPlayerEntity):
     _attr_has_entity_name = True
     _attr_name = "Ses"
     _attr_should_poll = False
-    _attr_source_list = list(SOUNDS)
     _attr_supported_features = (MediaPlayerEntityFeature.PLAY
                                 | MediaPlayerEntityFeature.STOP
                                 | MediaPlayerEntityFeature.VOLUME_SET
                                 | MediaPlayerEntityFeature.SELECT_SOURCE)
 
-    def __init__(self, server: EW202WServer, device_id: str) -> None:
+    def __init__(self, server: EW202WServer, device_id: str,
+                 sounds: dict[str, int]) -> None:
         self._server = server
         self._device_id = device_id
+        self._sounds = sounds
+        self._attr_source_list = list(sounds)
         self._attr_unique_id = f"ew202w_{device_id}_sound"
         self._attr_device_info = {"identifiers": {(DOMAIN, device_id)}}
-        self._attr_source = SOUND_WHITE_NOISE
+        self._attr_source = self._attr_source_list[0]
         self._volume = DEFAULT_VOLUME
         self._playing = False
 
@@ -85,7 +88,7 @@ class EW202WSoundPlayer(MediaPlayerEntity):
 
     async def async_media_play(self) -> None:
         async_dispatcher_send(self.hass, SIGNAL_SOUND_START.format(self._device_id))
-        if await self._send(P.MUSIC_PLAY, SOUNDS[self._attr_source]):
+        if await self._send(P.MUSIC_PLAY, self._sounds[self._attr_source]):
             self._playing = True
             self.async_write_ha_state()
 

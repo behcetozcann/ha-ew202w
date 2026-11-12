@@ -1,4 +1,6 @@
-"""EW202W ışık efektleri: hazır renkler + yazılımsal animasyonlar.
+"""EW202W ışık efektleri: yazılımsal animasyonlar ve lambanın dahili akış modu.
+
+Sabit renkler efekt değildir; HA ışık penceresindeki sık kullanılan renklerden seçilir.
 
 Animasyonlar entegrasyon tarafında üretilir ve lambaya periyodik RGBW karesi
 olarak gönderilir (cihazda hazır 'ateş' efekti olmadığı için).
@@ -6,24 +8,6 @@ olarak gönderilir (cihazda hazır 'ateş' efekti olmadığı için).
 from __future__ import annotations
 import colorsys
 import random
-
-# Hazır (statik) popüler renkler: ad -> (R, G, B, W)
-STATIC_COLORS: dict[str, tuple[int, int, int, int]] = {
-    "Beyaz": (0, 0, 0, 255),
-    "Sıcak Beyaz": (255, 160, 60, 120),
-    "Kırmızı": (255, 0, 0, 0),
-    "Turuncu": (255, 90, 0, 0),
-    "Sarı": (255, 200, 0, 0),
-    "Yeşil": (0, 255, 0, 0),
-    "Camgöbeği": (0, 255, 200, 0),
-    "Mavi": (0, 0, 255, 0),
-    "Gökyüzü Mavisi": (0, 150, 255, 0),
-    "Mor": (150, 0, 255, 0),
-    "Pembe": (255, 0, 150, 0),
-    "Magenta": (255, 0, 255, 0),
-    "YouTube Kırmızısı": (255, 0, 0, 0),
-    "Lime": (160, 255, 0, 0),
-}
 
 # Animasyonlu efektler (yazılımsal)
 ANIMATED = ["Gökkuşağı", "Renk Döngüsü", "Ateş", "Nabız", "Strobe", "Parti", "Noel"]
@@ -69,7 +53,7 @@ HUE_STYLE = list(AMBIENT) + [SPARKLE, PRISM, SUNRISE, SUNSET]
 
 
 def effect_list() -> list[str]:
-    return list(STATIC_COLORS.keys()) + ANIMATED + [BUILTIN_FLOW] + HUE_STYLE
+    return ANIMATED + [BUILTIN_FLOW] + HUE_STYLE
 
 
 def is_animated(name: str) -> bool:
@@ -83,10 +67,6 @@ def _sun_frame(progress: float) -> tuple[int, int, int, int, int]:
             ratio = (progress - start) / (end - start)
             return tuple(round(a + (b - a) * ratio) for a, b in zip(low, high))
     return tuple(SUN_STOPS[-1][1:])
-
-
-def static_rgbw(name: str) -> tuple[int, int, int, int] | None:
-    return STATIC_COLORS.get(name)
 
 
 def frame(name: str, step: int) -> tuple[int, int, int, int, int]:

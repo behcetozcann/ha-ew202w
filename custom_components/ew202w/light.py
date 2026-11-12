@@ -39,7 +39,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
 
 
 class EW202WLight(LightEntity):
-    """EW202W RGBW ışık + hazır renkler ve animasyonlu efektler."""
+    """EW202W RGBW ışık ve animasyonlu efektler."""
 
     _attr_has_entity_name = True
     _attr_name = None
@@ -167,14 +167,6 @@ class EW202WLight(LightEntity):
                 self._anim_task = self.hass.async_create_task(
                     self._run_effect(effect))
                 self.async_write_ha_state()
-                return
-            rgbw = effects.static_rgbw(effect)
-            if rgbw:
-                self._rgbw = rgbw
-                r, g, b, w = rgbw
-                if await self._send(r, g, b, w, self._bri_pct()):
-                    self._is_on = True
-                    self.async_write_ha_state()
                 return
 
         # efekt yoksa normal renk/parlaklık

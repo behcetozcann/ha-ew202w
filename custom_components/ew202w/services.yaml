@@ -6,7 +6,7 @@ update_firmware:
   fields:
     device_id:
       name: Lamba kimliği
-      description: Lambanın cihaz kimliği (ör. a2cukwpuzwtlr).
+      description: Lambanın cihaz kimliği (ör. abc123lampid).
       required: true
       selector:
         text:
