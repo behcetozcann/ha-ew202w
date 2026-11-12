@@ -102,6 +102,8 @@ class EW202WSoundPlayer(MediaPlayerEntity):
         await self.async_media_play()
 
     async def async_set_volume_level(self, volume: float) -> None:
+        """Lambada ayrı bir ses düzeyi komutu yok: çalan ses yeni düzeyle yeniden başlatılır."""
         self._volume = max(1, round(volume * P.MAX_VOLUME))
-        if await self._send(P.MUSIC_VOLUME):
-            self.async_write_ha_state()
+        if self._playing:
+            await self._send(P.MUSIC_PLAY, self._sounds[self._attr_source])
+        self.async_write_ha_state()

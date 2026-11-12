@@ -16,3 +16,35 @@ update_firmware:
       required: true
       selector:
         text:
+send_raw:
+  name: Ham mesaj gönder
+  description: Protokol denemeleri için lambaya ham mesaj gönderir. Ne yaptığınızı bilmiyorsanız kullanmayın.
+  fields:
+    device_id:
+      name: Lamba kimliği
+      required: true
+      selector:
+        text:
+    msg_type:
+      name: Mesaj türü
+      description: Ondalık mesaj numarası (ör. 5398).
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 65535
+          mode: box
+    payload_hex:
+      name: Gövde (hex)
+      required: false
+      selector:
+        text:
+    frame_type:
+      name: Çerçeve türü
+      description: 1 = POST, 2 = Request.
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 2
+          mode: box

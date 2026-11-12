@@ -18,6 +18,9 @@ from .const import (DOMAIN, SIGNAL_DEVICE_UPDATE, SIGNAL_NEW_DEVICE,
 from .server import EW202WServer
 
 _LOGGER = logging.getLogger(__name__)
+# Lamba her renk/parlaklık değişimini kalıcı belleğine yazar; kareleri seyrek tutmak
+# hem flash ömrünü korur hem de lambanın ~600 ms'lik yumuşak geçişiyle örtüşür.
+MIN_FRAME_INTERVAL = 0.6
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
@@ -89,7 +92,8 @@ class EW202WLight(LightEntity):
     def extra_state_attributes(self) -> dict:
         state = self._server.state(self._device_id)
         return {key: state[key] for key in
-                ("sleep_aid", "music_playing", "sleep_aid_music_id") if key in state}
+                ("sleep_aid", "music_playing", "sleep_aid_music_id", "sleep_aid_minutes",
+                 "light_state", "status_hex") if key in state}
 
     @callback
     def _device_updated(self) -> None:
@@ -138,9 +142,10 @@ class EW202WLight(LightEntity):
         try:
             while True:
                 r, g, b, w, bri = effects.frame(name, step)
-                await self._send(r, g, b, w, bri)
+                # efektin kendi parlaklığı, kullanıcının ayarladığı parlaklıkla ölçeklenir
+                await self._send(r, g, b, w, max(1, round(bri * self._brightness / 255)))
                 step += 1
-                await asyncio.sleep(effects.frame_interval(name))
+                await asyncio.sleep(max(effects.frame_interval(name), MIN_FRAME_INTERVAL))
         except asyncio.CancelledError:
             pass
         except Exception as err:  # noqa: BLE001
@@ -153,6 +158,12 @@ class EW202WLight(LightEntity):
             self._rgbw = kwargs["rgbw_color"]
 
         effect = kwargs.get("effect")
+        if not effect and self._effect and "rgbw_color" not in kwargs:
+            # yalnız parlaklık değişti: efekt sürsün, yeni parlaklıkla
+            if self._anim_task and not self._anim_task.done():
+                self.async_write_ha_state()
+                return
+            effect = self._effect
         if effect:
             self._stop_anim()
             self._effect = effect

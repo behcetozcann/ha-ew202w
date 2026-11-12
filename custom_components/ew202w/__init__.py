@@ -12,13 +12,17 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from . import protocol as P
 from .const import (CONF_PORT, CONF_TZ_OFFSET, DEFAULT_PORT, DOMAIN, EVENT_STATE_CHANGED,
-                    SERVICE_UPDATE_FIRMWARE, SIGNAL_DEVICE_UPDATE, SIGNAL_NEW_DEVICE)
+                    SERVICE_SEND_RAW, SERVICE_UPDATE_FIRMWARE, SIGNAL_DEVICE_UPDATE, SIGNAL_NEW_DEVICE)
 from .server import EW202WServer
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = [Platform.LIGHT, Platform.MEDIA_PLAYER]
 UPDATE_SCHEMA = vol.Schema({vol.Required("device_id"): cv.string,
                             vol.Required("url"): cv.url})
+RAW_SCHEMA = vol.Schema({vol.Required("device_id"): cv.string,
+                         vol.Required("msg_type"): vol.Coerce(int),
+                         vol.Optional("payload_hex", default=""): cv.string,
+                         vol.Optional("frame_type", default=P.FRAME_REQUEST): vol.In([1, 2])})
 
 
 def _tz_offset_seconds(hass: HomeAssistant) -> int:
@@ -68,8 +72,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.warning("EW202W %s yazılım yükleme komutu %s: %s", call.data["device_id"],
                         "gönderildi" if sent else "GÖNDERİLEMEDİ", call.data["url"])
 
+    async def send_raw(call: ServiceCall) -> None:
+        """Protokol denemeleri için ham mesaj gönderir."""
+        await server.send(call.data["device_id"], call.data["msg_type"],
+                          bytes.fromhex(call.data["payload_hex"]),
+                          frame_type=call.data["frame_type"])
+
     hass.services.async_register(DOMAIN, SERVICE_UPDATE_FIRMWARE, update_firmware,
                                  schema=UPDATE_SCHEMA)
+    hass.services.async_register(DOMAIN, SERVICE_SEND_RAW, send_raw, schema=RAW_SCHEMA)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = server
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_options_updated))
@@ -86,4 +97,5 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if server:
         await server.stop()
     hass.services.async_remove(DOMAIN, SERVICE_UPDATE_FIRMWARE)
+    hass.services.async_remove(DOMAIN, SERVICE_SEND_RAW)
     return unloaded

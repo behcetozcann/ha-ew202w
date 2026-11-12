@@ -38,8 +38,7 @@ COLOR_FLOW = 9      # colorId=9 => lambanın dahili akış (renk döngüsü) mod
 
 # müzik işlemi (msgType 5398)
 MUSIC_STOP = 0
-MUSIC_PLAY = 1
-MUSIC_VOLUME = 2
+MUSIC_PLAY = 1     # 0 dışındaki her işlem "ses düzeyini ayarla + verilen sesi baştan çal" demektir
 MAX_VOLUME = 16
 UPDATE_BODY_SIZE = 133
 
@@ -193,4 +192,5 @@ def parse_work_mode(content: bytes) -> dict | None:
         "music_playing": bool(content[16]),
         "sleep_aid_music_id": struct.unpack(">H", content[17:19])[0],
         "sleep_aid_minutes": content[19],
+        "status_hex": content.hex(),
     }

@@ -14,6 +14,7 @@ SIGNAL_DEVICE_UPDATE = f"{DOMAIN}_device_update_{{}}"  # .format(device_id)
 SIGNAL_SOUND_START = f"{DOMAIN}_sound_start_{{}}"  # .format(device_id)
 
 SERVICE_UPDATE_FIRMWARE = "update_firmware"
+SERVICE_SEND_RAW = "send_raw"
 EVENT_STATE_CHANGED = f"{DOMAIN}_state_changed"
 
 CONF_SOUND_NAMES = "sound_names"
