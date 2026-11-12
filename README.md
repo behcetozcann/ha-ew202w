@@ -79,8 +79,9 @@ python tools/provision.py --ssid "YourWifi" --pass "YourPassword" --host 192.168
 
 - Sound and a fixed light colour now work together: both are applied with the lamp's
   scene command (msgType 5392), so colour, brightness and volume can change while a
-  sound plays, without restarting it. Animated effects still stop the sound (each
-  effect frame is a plain light command, which the stock firmware treats as "end sleep aid").
+  sound plays, without restarting it. From 0.3.6 animated effects also keep the sound: while a sound
+  plays their frames go through the scene command, one frame per 1.5 s. Only the lamp's
+  built-in flow mode cannot be combined with sound.
 - A brightness change keeps the running effect.
 - Effect frames are sent at most every 0.6 s. The stock firmware writes every
   colour/brightness change to flash, so very fast effects wear it for no visible gain.

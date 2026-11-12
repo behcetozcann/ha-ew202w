@@ -21,6 +21,9 @@ _LOGGER = logging.getLogger(__name__)
 # Lamba her renk/parlaklık değişimini kalıcı belleğine yazar; kareleri seyrek tutmak
 # hem flash ömrünü korur hem de lambanın ~600 ms'lik yumuşak geçişiyle örtüşür.
 MIN_FRAME_INTERVAL = 0.6
+# Ses çalarken kareler sahne komutuyla gider (sesi kesmez) ama daha seyrek gönderilir:
+# gece boyu ses + efekt kullanımı flash'ı en çok yıpratan durumdur.
+SOUND_FRAME_INTERVAL = 1.5
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
@@ -111,8 +114,10 @@ class EW202WLight(LightEntity):
 
     @callback
     def _sound_starting(self) -> None:
-        """Hareketli efekt karesi sesi keser; ses başlarken efekt durur, sabit renk kalır."""
-        self._stop_anim()
+        """Ses başlarken: hareketli efekt sürer (kareler sahne komutuna geçer); lambanın
+        dahili akış modu ise sesle birlikte çalışamaz, sabit renge dönülür."""
+        if self._anim_task and not self._anim_task.done():
+            return
         self._effect = None
         self._server.mix(self._device_id).update(
             light_on=self._is_on, brightness=self._bri_pct(), rgbw=tuple(self._rgbw))
@@ -146,9 +151,17 @@ class EW202WLight(LightEntity):
             while True:
                 r, g, b, w, bri = effects.frame(name, step)
                 # efektin kendi parlaklığı, kullanıcının ayarladığı parlaklıkla ölçeklenir
-                await self._send(r, g, b, w, max(1, round(bri * self._brightness / 255)))
+                bri = max(1, round(bri * self._brightness / 255))
+                mix = self._server.mix(self._device_id)
+                interval = max(effects.frame_interval(name), MIN_FRAME_INTERVAL)
+                if mix["sound_on"]:
+                    mix.update(light_on=True, brightness=bri, rgbw=(r, g, b, w))
+                    await self._server.send_scene(self._device_id)
+                    interval = max(interval, SOUND_FRAME_INTERVAL)
+                else:
+                    await self._send(r, g, b, w, bri)
                 step += 1
-                await asyncio.sleep(max(effects.frame_interval(name), MIN_FRAME_INTERVAL))
+                await asyncio.sleep(interval)
         except asyncio.CancelledError:
             pass
         except Exception as err:  # noqa: BLE001
@@ -171,8 +184,9 @@ class EW202WLight(LightEntity):
         if effect:
             self._stop_anim()
             self._effect = effect
-            mix.update(light_on=True, sound_on=False)  # efekt komutları sesi keser
+            mix["light_on"] = True
             if effect == effects.BUILTIN_FLOW:
+                mix["sound_on"] = False  # dahili akış düz ışık komutudur, sesi keser
                 body = P.light_body(P.LIGHT_ON, self._bri_pct(), P.COLOR_FLOW)
                 if await self._server.send_light(self._device_id, body):
                     self._is_on = True
