@@ -18,6 +18,7 @@ class DeviceConn:
         self.device_id = device_id
         self.writer = writer
         self.available = True
+        self.state: dict = {}
 
 
 class EW202WServer:
@@ -55,13 +56,21 @@ class EW202WServer:
         dev = self.devices.get(device_id)
         return bool(dev and dev.available)
 
+    def state(self, device_id: str) -> dict:
+        dev = self.devices.get(device_id)
+        return dev.state if dev else {}
+
     async def send_light(self, device_id: str, body: bytes) -> bool:
+        return await self.send(device_id, P.MSG_LIGHT, body)
+
+    async def send(self, device_id: str, msg_type: int, body: bytes,
+                   frame_type: int = P.FRAME_REQUEST) -> bool:
         dev = self.devices.get(device_id)
         if not dev or not dev.available:
             _LOGGER.warning("EW202W %s bağlı değil, komut gönderilemedi", device_id)
             return False
         try:
-            dev.writer.write(P.build_frame(P.MSG_LIGHT, body))
+            dev.writer.write(P.build_frame(msg_type, body, ftype=frame_type))
             await dev.writer.drain()
             return True
         except Exception as err:  # noqa: BLE001
@@ -86,6 +95,11 @@ class EW202WServer:
                         self.devices[device_id] = DeviceConn(device_id, writer)
                         _LOGGER.info("EW202W bağlandı: %s (%s)", device_id, peer)
                         self._on_connect(device_id)
+                    if fr["msgType"] == P.MSG_WORK_MODE and device_id:
+                        state = P.parse_work_mode(fr["content"])
+                        if state and state != self.devices[device_id].state:
+                            self.devices[device_id].state = state
+                            self._on_update(device_id)
                     # el sıkışma / saat / heartbeat yanıtı
                     resp = P.handshake_response(fr, self._tz_offset)
                     if resp is not None:

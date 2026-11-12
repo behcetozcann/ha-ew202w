@@ -1,0 +1,18 @@
+update_firmware:
+  name: Yazılım yükle
+  description: >-
+    Lambaya verilen adresten yazılım yükletir. Lamba dosyayı HTTP ile kendisi indirir,
+    yedek bölüme yazar ve yeniden başlar. Yalnızca doğrulanmış bir yazılım dosyasıyla kullanın.
+  fields:
+    device_id:
+      name: Lamba kimliği
+      description: Lambanın cihaz kimliği (ör. a2cukwpuzwtlr).
+      required: true
+      selector:
+        text:
+    url:
+      name: Yazılım adresi
+      description: HTTP adresi, en fazla 127 karakter (ör. http://192.168.1.11:8123/local/ew202w.bin).
+      required: true
+      selector:
+        text:

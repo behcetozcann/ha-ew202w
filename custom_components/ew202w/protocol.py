@@ -23,12 +23,25 @@ MSG_SET_SERVER = 5378
 MSG_LIGHT = 5394
 MSG_REGISTER = 1028
 MSG_TIME = 513
+MSG_MUSIC = 5398
+MSG_WORK_MODE = 5424      # lambanın durum bildirimi (POST)
+MSG_UPDATE = 1284         # yazılım güncelleme; lamba yalnız POST (ftype=1) olarak işler
+
+FRAME_ACK, FRAME_POST, FRAME_REQUEST, FRAME_RESPONSE = 0, 1, 2, 3
 
 # ışık işlemi
 LIGHT_OFF = 0
 LIGHT_ON = 1
 LIGHT_BRIGHTNESS = 2
 COLOR_CUSTOM = 255  # colorId=255 => RGBW serbest renk
+COLOR_FLOW = 9      # colorId=9 => lambanın dahili akış (renk döngüsü) modu
+
+# müzik işlemi (msgType 5398)
+MUSIC_STOP = 0
+MUSIC_PLAY = 1
+MUSIC_VOLUME = 2
+MAX_VOLUME = 16
+UPDATE_BODY_SIZE = 133
 
 _serial = 0
 
@@ -144,3 +157,40 @@ def server_address_body(ip: str, port: int) -> bytes:
     b[32:34] = struct.pack(">h", port)
     b[34:34 + len(s)] = s
     return bytes(b)
+
+
+def music_body(operation: int, music_id: int = 0, volume: int = 0) -> bytes:
+    """Müzik komutu gövdesi (msgType 5398). music_id = lambadaki /spiffs/<id>.MP3."""
+    return (bytes([operation & 0xFF]) + struct.pack(">H", music_id & 0xFFFF)
+            + bytes([max(0, min(int(volume), MAX_VOLUME))]))
+
+
+def update_body(url: str, current_version: int = 146, target_version: int = 147,
+                update_type: int = 0) -> bytes:
+    """Yazılım güncelleme gövdesi (msgType 1284): lamba URL'den HTTP ile indirip kurar."""
+    encoded = url.encode()
+    if len(encoded) > UPDATE_BODY_SIZE - 6:
+        raise ValueError("URL en fazla 127 bayt olabilir")
+    body = bytearray(UPDATE_BODY_SIZE)
+    body[0:2] = struct.pack(">H", current_version)
+    body[2:4] = struct.pack(">H", target_version)
+    body[4] = update_type & 0xFF
+    body[5:5 + len(encoded)] = encoded
+    return bytes(body)
+
+
+def parse_work_mode(content: bytes) -> dict | None:
+    """5424 durum bildirimini çözer (lamba her durum değişiminde gönderir)."""
+    if len(content) < 20:
+        return None
+    return {
+        "light_state": content[1],          # 0 kapalı, 1 açık, 2 uyku yardımı ışığı
+        "brightness": content[2],           # 0-100
+        "color_id": content[3],
+        "rgbw": tuple(content[4:8]),
+        "sleep_aid": bool(content[14]),
+        "sleep_aid_light": bool(content[15]),
+        "music_playing": bool(content[16]),
+        "sleep_aid_music_id": struct.unpack(">H", content[17:19])[0],
+        "sleep_aid_minutes": content[19],
+    }

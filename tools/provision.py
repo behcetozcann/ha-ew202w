@@ -29,14 +29,14 @@ WRITE_UUID = "0000ffe9-0000-1000-8000-00805f9b34fb"
 MFG_PREFIX = bytes.fromhex("455732325732")  # "EW22W2"
 
 
-async def find_lamp(timeout=15):
+async def find_lamp(timeout=15, name_filter=b""):
     print("[BLE] lamba aranıyor (prize takılı + sıfırlanmış + yakın)...")
     found = {}
 
     def cb(dev, adv):
         for cid, data in (adv.manufacturer_data or {}).items():
             raw = struct.pack("<H", cid) + data
-            if raw.startswith(MFG_PREFIX):
+            if raw.startswith(MFG_PREFIX) and name_filter in raw:
                 found.setdefault(dev.address, dev)
 
     sc = BleakScanner(detection_callback=cb)
@@ -65,6 +65,8 @@ async def main():
     ap.add_argument("--host", required=True, help="Home Assistant host IP")
     ap.add_argument("--port", type=int, default=9988)
     ap.add_argument("--env", help=".env dosyasından SSID/PASS oku (WIFI_SSID/WIFI_PASS)")
+    ap.add_argument("--lamp", default="",
+                    help="Birden çok lamba varsa hedefin adı (ör. EW22W21701112)")
     a = ap.parse_args()
     if a.env and (not a.ssid or not a.pwd):
         for line in open(a.env):
@@ -76,7 +78,7 @@ async def main():
     if not a.ssid or not a.pwd:
         sys.exit("SSID/PASS gerekli (--ssid/--pass veya --env <.env yolu>)")
 
-    dev = await find_lamp()
+    dev = await find_lamp(name_filter=a.lamp.encode())
     if not dev:
         sys.exit("[BLE] Lamba bulunamadı.")
     print(f"[BLE] bulundu {dev.address}, bağlanılıyor...")

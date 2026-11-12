@@ -84,10 +84,29 @@ class EW202WLight(LightEntity):
     def effect(self) -> str | None:
         return self._effect
 
+    @property
+    def extra_state_attributes(self) -> dict:
+        state = self._server.state(self._device_id)
+        return {key: state[key] for key in
+                ("sleep_aid", "music_playing", "sleep_aid_music_id") if key in state}
+
+    @callback
+    def _device_updated(self) -> None:
+        """Lambanın kendi bildirdiği durumu yansıt (tuşla açma/kapama dahil)."""
+        state = self._server.state(self._device_id)
+        animating = self._anim_task is not None and not self._anim_task.done()
+        if state and not animating:
+            self._is_on = state["light_state"] != 0
+            if self._is_on and state["brightness"]:
+                self._brightness = round(state["brightness"] / 100 * 255)
+            if not self._is_on:
+                self._effect = None
+        self.async_write_ha_state()
+
     async def async_added_to_hass(self) -> None:
         self.async_on_remove(async_dispatcher_connect(
             self.hass, SIGNAL_DEVICE_UPDATE.format(self._device_id),
-            self.async_write_ha_state))
+            self._device_updated))
 
     async def async_will_remove_from_hass(self) -> None:
         self._stop_anim()
@@ -127,6 +146,12 @@ class EW202WLight(LightEntity):
         if effect:
             self._stop_anim()
             self._effect = effect
+            if effect == effects.BUILTIN_FLOW:
+                body = P.light_body(P.LIGHT_ON, self._bri_pct(), P.COLOR_FLOW)
+                if await self._server.send_light(self._device_id, body):
+                    self._is_on = True
+                    self.async_write_ha_state()
+                return
             if effects.is_animated(effect):
                 self._is_on = True
                 self._anim_task = self.hass.async_create_task(

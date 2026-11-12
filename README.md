@@ -53,6 +53,21 @@ python tools/provision.py --ssid "YourWifi" --pass "YourPassword" --host 192.168
 - ⚠️ Optimistic state (no live feedback yet); physical button changes aren't reflected.
 - ⚠️ Alarm / music / white-noise not exposed yet (planned).
 
+## New in 0.3.0
+
+- **Sound player** (`media_player`): plays the sounds stored in the lamp
+  (`/spiffs/<musicId>.MP3`), with stop and volume. Music and light are one "sleep aid"
+  mode in the stock firmware, so starting one can stop the other.
+- **Real state**: the lamp's own status reports update the light entity, so changes made
+  with the lamp's buttons show up in Home Assistant. An `ew202w_state_changed` event
+  (`light_on`, `sleep_aid`, `music_playing`) is fired for automations.
+- **Built-in flow mode** and twelve ambient effects (candle, fireplace, sparkle, glisten,
+  opal, prism, sunrise, sunset, underwater, cosmos, sunbeam, enchant).
+- **`ew202w.update_firmware` service**: tells the lamp to download a firmware image from
+  an HTTP URL and install it to its spare app slot. The stock firmware does not verify a
+  signature, so only use an image you have validated; keep a UART backup.
+- `tools/provision.py --lamp <name>` targets one lamp when several are nearby.
+
 ## Credits
 
 Reverse engineering & integration by the community. Protocol notes in the project.
