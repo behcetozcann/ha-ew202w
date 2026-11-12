@@ -1,6 +1,8 @@
 """EW202W ses çalar: lambanın içindeki sesleri (beyaz gürültü dahil) çalar."""
 from __future__ import annotations
 
+import time
+
 from homeassistant.components.media_player import (MediaPlayerEntity,
                                                     MediaPlayerEntityFeature,
                                                     MediaPlayerState)
@@ -82,6 +84,7 @@ class EW202WSoundPlayer(MediaPlayerEntity):
     async def _apply(self, sound_on: bool) -> None:
         mix = self._server.mix(self._device_id)
         mix["sound_on"] = sound_on
+        mix["transition_at"] = time.monotonic()
         mix["music_id"] = self._sounds[self._attr_source]
         if await self._server.send_scene(self._device_id):
             self._playing = sound_on
