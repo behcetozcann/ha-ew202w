@@ -13,7 +13,8 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import effects
 from . import protocol as P
-from .const import DOMAIN, SIGNAL_DEVICE_UPDATE, SIGNAL_NEW_DEVICE
+from .const import (DOMAIN, SIGNAL_DEVICE_UPDATE, SIGNAL_NEW_DEVICE,
+                    SIGNAL_SOUND_START)
 from .server import EW202WServer
 
 _LOGGER = logging.getLogger(__name__)
@@ -103,10 +104,19 @@ class EW202WLight(LightEntity):
                 self._effect = None
         self.async_write_ha_state()
 
+    @callback
+    def _sound_starting(self) -> None:
+        """Stok yazılımda her ışık komutu sesi keser; ses başlarken animasyonu durdur."""
+        self._stop_anim()
+        self._effect = None
+
     async def async_added_to_hass(self) -> None:
         self.async_on_remove(async_dispatcher_connect(
             self.hass, SIGNAL_DEVICE_UPDATE.format(self._device_id),
             self._device_updated))
+        self.async_on_remove(async_dispatcher_connect(
+            self.hass, SIGNAL_SOUND_START.format(self._device_id),
+            self._sound_starting))
 
     async def async_will_remove_from_hass(self) -> None:
         self._stop_anim()

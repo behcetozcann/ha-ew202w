@@ -9,6 +9,9 @@ DEFAULT_PORT = 9988
 # Yeni cihaz bağlandığında / durum değiştiğinde yayınlanan dispatcher sinyalleri
 SIGNAL_NEW_DEVICE = f"{DOMAIN}_new_device"
 SIGNAL_DEVICE_UPDATE = f"{DOMAIN}_device_update_{{}}"  # .format(device_id)
+# Ses başlatılmadan hemen önce yayınlanır: ışık komutu sesi kestiği için
+# çalışan efekt animasyonu durdurulmalıdır.
+SIGNAL_SOUND_START = f"{DOMAIN}_sound_start_{{}}"  # .format(device_id)
 
 SERVICE_UPDATE_FIRMWARE = "update_firmware"
 EVENT_STATE_CHANGED = f"{DOMAIN}_state_changed"

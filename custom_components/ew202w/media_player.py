@@ -6,12 +6,13 @@ from homeassistant.components.media_player import (MediaPlayerEntity,
                                                     MediaPlayerState)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.helpers.dispatcher import (async_dispatcher_connect,
+                                              async_dispatcher_send)
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import protocol as P
-from .const import (DOMAIN, SIGNAL_DEVICE_UPDATE, SIGNAL_NEW_DEVICE, SOUND_WHITE_NOISE,
-                    SOUNDS)
+from .const import (DOMAIN, SIGNAL_DEVICE_UPDATE, SIGNAL_NEW_DEVICE, SIGNAL_SOUND_START,
+                    SOUND_WHITE_NOISE, SOUNDS)
 from .server import EW202WServer
 
 DEFAULT_VOLUME = 6
@@ -83,6 +84,7 @@ class EW202WSoundPlayer(MediaPlayerEntity):
         return await self._server.send(self._device_id, P.MSG_MUSIC, body)
 
     async def async_media_play(self) -> None:
+        async_dispatcher_send(self.hass, SIGNAL_SOUND_START.format(self._device_id))
         if await self._send(P.MUSIC_PLAY, SOUNDS[self._attr_source]):
             self._playing = True
             self.async_write_ha_state()
