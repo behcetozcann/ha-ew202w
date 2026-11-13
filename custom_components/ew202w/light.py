@@ -1,7 +1,5 @@
 """EW202W ışık platformu."""
 from __future__ import annotations
-import asyncio
-import logging
 import time
 
 from homeassistant.components.light import (ColorMode, LightEntity,
@@ -18,14 +16,6 @@ from .const import (CONF_PATCHED_LAMPS, DOMAIN, SIGNAL_DEVICE_UPDATE, SIGNAL_NEW
                     SIGNAL_SOUND_START, patched_lamps)
 from .server import EW202WServer
 
-_LOGGER = logging.getLogger(__name__)
-# Lamba her renk/parlaklık değişimini kalıcı belleğine yazar; kareleri seyrek tutmak
-# hem flash ömrünü korur hem de lambanın ~600 ms'lik yumuşak geçişiyle örtüşür.
-MIN_FRAME_INTERVAL = 0.6
-# Ses çalarken kareler sahne komutuyla gider (sesi kesmez) ama daha seyrek gönderilir:
-# gece boyu ses + efekt kullanımı flash'ı en çok yıpratan durumdur.
-SOUND_FRAME_INTERVAL = 1.5
-BUTTON_OFF_GUARD_SECONDS = 2.0
 TRANSITION_GUARD_SECONDS = 1.5
 
 
@@ -49,7 +39,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
 
 
 class EW202WLight(LightEntity):
-    """EW202W RGBW ışık ve animasyonlu efektler."""
+    """EW202W RGBW ışık ve lambanın dahili akış efektleri."""
 
     _attr_has_entity_name = True
     _attr_name = None
@@ -62,7 +52,8 @@ class EW202WLight(LightEntity):
         self._server = server
         self._device_id = device_id
         self._attr_unique_id = f"ew202w_{device_id}"
-        self._attr_effect_list = effects.effect_list(patched_firmware)
+        self._effect_ids = effects.effect_color_ids(patched_firmware)
+        self._attr_effect_list = list(self._effect_ids)
         self._attr_device_info = {
             "identifiers": {(DOMAIN, device_id)},
             "name": f"Uyku Işığı {device_id[-4:]}",
@@ -73,9 +64,7 @@ class EW202WLight(LightEntity):
         self._brightness = 255
         self._rgbw = (255, 255, 255, 255)
         self._effect: str | None = None
-        self._anim_task: asyncio.Task | None = None
         self._paused: dict | None = None
-        self._paused_at = 0.0
         self._sound_was_on = False
 
     @property
@@ -114,15 +103,14 @@ class EW202WLight(LightEntity):
             return
         device_on = state["light_state"] != 0
         mix = self._server.mix(self._device_id)
-        animating = self._anim_task is not None and not self._anim_task.done()
 
         if self._is_on and not device_on:
             # ses başlat/durdur komutunun hemen ardından gelen ara "kapalı" bildirimi tuş değildir
             if time.monotonic() - mix.get("transition_at", 0.0) > TRANSITION_GUARD_SECONDS:
-                self._paused_by_button(animating)
+                self._paused_by_button()
         elif not self._is_on and device_on and self._paused:
             self._resumed_by_button(mix)
-        elif not animating:
+        else:
             self._is_on = device_on
             if device_on and state["brightness"]:
                 self._brightness = round(state["brightness"] / 100 * 255)
@@ -130,24 +118,16 @@ class EW202WLight(LightEntity):
         self._sound_was_on = state["music_playing"]
         self.async_write_ha_state()
 
-    def _paused_by_button(self, animating: bool) -> None:
-        """Lamba tuşla kapatıldı: efekti durdur, tekrar açılınca sürdürmek için hatırla."""
-        effect = self._effect if animating or self._effect in effects.BUILTIN_COLOR_IDS else None
-        if effect or self._sound_was_on:
-            self._paused = {"effect": effect, "sound": self._sound_was_on}
-            self._paused_at = time.monotonic()
-        self._stop_anim()
+    def _paused_by_button(self) -> None:
+        """Lamba tuşla kapatıldı: tekrar açılınca efekti ve sesi sürdürmek için hatırla."""
+        if self._effect or self._sound_was_on:
+            self._paused = {"effect": self._effect, "sound": self._sound_was_on}
         self._effect = None
         self._is_on = False
         self._server.mix(self._device_id)["light_on"] = False
 
     def _resumed_by_button(self, mix: dict) -> None:
         """Lamba tuşla açıldı: kapanmadan önceki efekt ve ses sürdürülür."""
-        if time.monotonic() - self._paused_at < BUTTON_OFF_GUARD_SECONDS:
-            # kapanma anında yolda kalan son efekt karesi lambayı geri açtı: yeniden kapat
-            body = P.light_body(P.LIGHT_OFF, 0, P.COLOR_CUSTOM, 0, 0, 0, 0)
-            self.hass.async_create_task(self._server.send_light(self._device_id, body))
-            return
         paused, self._paused = self._paused, None
         mix.update(light_on=True, sound_on=paused["sound"])
         if paused["effect"]:
@@ -158,10 +138,8 @@ class EW202WLight(LightEntity):
 
     @callback
     def _sound_starting(self) -> None:
-        """Ses başlarken: hareketli efekt sürer (kareler sahne komutuna geçer); lambanın
-        dahili akış modu ise sesle birlikte çalışamaz, sabit renge dönülür."""
-        if self._anim_task and not self._anim_task.done():
-            return
+        """Ses başlarken: dahili akış efekti sesle birlikte çalışamaz (sahne komutunda
+        colorId yok), sabit renge dönülür."""
         self._effect = None
         self._server.mix(self._device_id).update(
             light_on=self._is_on, brightness=self._bri_pct(), rgbw=tuple(self._rgbw))
@@ -174,42 +152,12 @@ class EW202WLight(LightEntity):
             self.hass, SIGNAL_SOUND_START.format(self._device_id),
             self._sound_starting))
 
-    async def async_will_remove_from_hass(self) -> None:
-        self._stop_anim()
-
-    def _stop_anim(self) -> None:
-        if self._anim_task and not self._anim_task.done():
-            self._anim_task.cancel()
-        self._anim_task = None
-
     def _bri_pct(self) -> int:
         return max(1, round(self._brightness / 255 * 100))
 
     async def _send(self, r, g, b, w, bri_pct) -> bool:
         body = P.light_body(P.LIGHT_ON, bri_pct, P.COLOR_CUSTOM, r, g, b, w)
         return await self._server.send_light(self._device_id, body)
-
-    async def _run_effect(self, name: str) -> None:
-        step = 0
-        try:
-            while True:
-                r, g, b, w, bri = effects.frame(name, step)
-                # efektin kendi parlaklığı, kullanıcının ayarladığı parlaklıkla ölçeklenir
-                bri = max(1, round(bri * self._brightness / 255))
-                mix = self._server.mix(self._device_id)
-                interval = max(effects.frame_interval(name), MIN_FRAME_INTERVAL)
-                if mix["sound_on"]:
-                    mix.update(light_on=True, brightness=bri, rgbw=(r, g, b, w))
-                    await self._server.send_scene(self._device_id)
-                    interval = max(interval, SOUND_FRAME_INTERVAL)
-                else:
-                    await self._send(r, g, b, w, bri)
-                step += 1
-                await asyncio.sleep(interval)
-        except asyncio.CancelledError:
-            pass
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.error("EW202W efekt hatası (%s): %s", name, err)
 
     async def async_turn_on(self, **kwargs) -> None:
         if "brightness" in kwargs:
@@ -220,33 +168,19 @@ class EW202WLight(LightEntity):
         self._paused = None
         effect = kwargs.get("effect")
         if not effect and self._effect and "rgbw_color" not in kwargs:
-            # yalnız parlaklık değişti: efekt sürsün, yeni parlaklıkla
-            if self._anim_task and not self._anim_task.done():
-                self.async_write_ha_state()
-                return
-            effect = self._effect
+            effect = self._effect  # yalnız parlaklık değişti: efekt yeni parlaklıkla sürsün
         mix = self._server.mix(self._device_id)
-        if effect:
-            self._stop_anim()
+        if effect in self._effect_ids:
             self._effect = effect
             mix["light_on"] = True
-            if effect in effects.BUILTIN_COLOR_IDS:
-                mix["sound_on"] = False  # dahili akış düz ışık komutudur, sesi keser
-                body = P.light_body(P.LIGHT_ON, self._bri_pct(),
-                                    effects.BUILTIN_COLOR_IDS[effect])
-                if await self._server.send_light(self._device_id, body):
-                    self._is_on = True
-                    self.async_write_ha_state()
-                return
-            if effects.is_animated(effect):
+            mix["sound_on"] = False  # dahili akış düz ışık komutudur, sesi keser
+            body = P.light_body(P.LIGHT_ON, self._bri_pct(), self._effect_ids[effect])
+            if await self._server.send_light(self._device_id, body):
                 self._is_on = True
-                self._anim_task = self.hass.async_create_task(
-                    self._run_effect(effect))
                 self.async_write_ha_state()
-                return
+            return
 
         # efekt yoksa normal renk/parlaklık
-        self._stop_anim()
         self._effect = None
         r, g, b, w = self._rgbw
         mix.update(light_on=True, brightness=self._bri_pct(), rgbw=tuple(self._rgbw))
@@ -260,7 +194,6 @@ class EW202WLight(LightEntity):
 
     async def async_turn_off(self, **kwargs) -> None:
         self._paused = None
-        self._stop_anim()
         self._effect = None
         mix = self._server.mix(self._device_id)
         mix["light_on"] = False

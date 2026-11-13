@@ -75,6 +75,17 @@ python tools/provision.py --ssid "YourWifi" --pass "YourPassword" --host 192.168
 - Sound sources are named `Ses <number>` by default. Per-lamp names can be set in the
   integration's options, one per line: `<lamp id>:<sound number>=<name>`.
 
+## New in 0.4.0
+
+- All effects now run inside the lamp. Choosing an effect sends a single light command;
+  the lamp crossfades the colours itself (2 s per colour), so Home Assistant sends no
+  frames and the lamp's flash is not worn by effect playback.
+- The software (frame-streamed) effects are removed. Stock firmware keeps one effect,
+  `Akış` (the lamp's own colour flow). Lamps listed under "patched firmware" also get
+  `Ateş`, `Okyanus`, `Gün Doğumu` and `Büyü` (colorId 13-16), built into the patched
+  firmware. A built-in effect cannot run together with a sound: starting a sound switches
+  the light to a fixed colour.
+
 ## New in 0.3.8
 
 - The server enables TCP keepalive on each lamp connection. A lamp that drops off Wi-Fi
