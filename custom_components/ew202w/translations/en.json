@@ -17,9 +17,10 @@
     "step": {
       "init": {
         "title": "Sound names",
-        "description": "One name per line. Format: LAMP_ID:SOUND_NUMBER=NAME — example: abc123lampid:31132=White Noise",
+        "description": "One name per line. Format: LAMP_ID:SOUND_NUMBER=NAME — example: abc123lampid:31132=White Noise In the patched lamps field list only lamps running the patched firmware; they get the Ocean effect.",
         "data": {
-          "sound_names": "Per-lamp sound names"
+          "sound_names": "Per-lamp sound names",
+          "patched_lamps": "Lamps with patched firmware (one ID per line)"
         }
       }
     }

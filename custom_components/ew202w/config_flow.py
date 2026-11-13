@@ -8,7 +8,7 @@ from homeassistant.config_entries import (ConfigEntry, ConfigFlow, ConfigFlowRes
 from homeassistant.core import callback
 from homeassistant.helpers.selector import TextSelector, TextSelectorConfig
 
-from .const import CONF_PORT, CONF_SOUND_NAMES, DEFAULT_PORT, DOMAIN
+from .const import CONF_PATCHED_LAMPS, CONF_PORT, CONF_SOUND_NAMES, DEFAULT_PORT, DOMAIN
 
 
 class EW202WConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -34,16 +34,20 @@ class EW202WConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class EW202WOptionsFlow(OptionsFlow):
-    """Lambaya özel ses adları (ör. değiştirilmiş bir MP3'e 'Beyaz Gürültü' adı vermek)."""
+    """Lambaya özel ses adları ve yamalı yazılım yüklü lambalar."""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             return self.async_create_entry(data=user_input)
-        current = self.config_entry.options.get(CONF_SOUND_NAMES, "")
+        options = self.config_entry.options
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema({
-                vol.Optional(CONF_SOUND_NAMES, description={"suggested_value": current}):
+                vol.Optional(CONF_SOUND_NAMES,
+                             description={"suggested_value": options.get(CONF_SOUND_NAMES, "")}):
+                    TextSelector(TextSelectorConfig(multiline=True)),
+                vol.Optional(CONF_PATCHED_LAMPS,
+                             description={"suggested_value": options.get(CONF_PATCHED_LAMPS, "")}):
                     TextSelector(TextSelectorConfig(multiline=True)),
             }),
         )

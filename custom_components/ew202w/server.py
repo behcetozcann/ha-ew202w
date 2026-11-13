@@ -6,6 +6,7 @@ her cihazı deviceId ile izler ve ışık komutlarını ilgili bağlantıya yaza
 from __future__ import annotations
 import asyncio
 import logging
+import socket
 from collections.abc import Callable
 
 from . import protocol as P
@@ -13,6 +14,30 @@ from . import protocol as P
 _LOGGER = logging.getLogger(__name__)
 STOP_TIMEOUT_SECONDS = 5
 DEFAULT_VOLUME = 6
+
+
+KEEPALIVE_IDLE_SECONDS = 60
+KEEPALIVE_INTERVAL_SECONDS = 10
+KEEPALIVE_PROBES = 3
+
+
+def _enable_keepalive(writer: asyncio.StreamWriter) -> None:
+    """Lamba Wi-Fi'dan FIN göndermeden düşerse okuma sonsuza dek beklemesin.
+
+    TCP keepalive ~90 sn içinde ölü bağlantıyı kapatır, varlık 'kullanılamıyor' olur.
+    """
+    sock = writer.get_extra_info("socket")
+    if sock is None:
+        return
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        for name, value in (("TCP_KEEPIDLE", KEEPALIVE_IDLE_SECONDS),
+                            ("TCP_KEEPINTVL", KEEPALIVE_INTERVAL_SECONDS),
+                            ("TCP_KEEPCNT", KEEPALIVE_PROBES)):
+            if hasattr(socket, name):
+                sock.setsockopt(socket.IPPROTO_TCP, getattr(socket, name), value)
+    except OSError as err:
+        _LOGGER.debug("EW202W keepalive ayarlanamadı: %s", err)
 
 
 class DeviceConn:
@@ -100,6 +125,7 @@ class EW202WServer:
     async def _handle(self, reader: asyncio.StreamReader,
                       writer: asyncio.StreamWriter) -> None:
         peer = writer.get_extra_info("peername")
+        _enable_keepalive(writer)
         device_id: str | None = None
         buf = bytearray()
         self._writers.add(writer)
@@ -114,7 +140,7 @@ class EW202WServer:
                     if fr["msgType"] == P.MSG_REGISTER and device_id is None:
                         device_id = P.device_id_from_register(fr["content"]) or f"{peer}"
                         self.devices[device_id] = DeviceConn(device_id, writer)
-                        _LOGGER.info("EW202W bağlandı: %s (%s)", device_id, peer)
+                        _LOGGER.warning("EW202W bağlandı: %s (%s)", device_id, peer)
                         self._on_connect(device_id)
                     if fr["msgType"] == P.MSG_WORK_MODE and device_id:
                         state = P.parse_work_mode(fr["content"])
@@ -138,7 +164,7 @@ class EW202WServer:
             if device_id and self.devices.get(device_id) and \
                     self.devices[device_id].writer is writer:
                 self.devices[device_id].available = False
-                _LOGGER.info("EW202W koptu: %s", device_id)
+                _LOGGER.warning("EW202W koptu: %s", device_id)
                 self._on_update(device_id)
             self._writers.discard(writer)
             try:

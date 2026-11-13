@@ -14,8 +14,8 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import effects
 from . import protocol as P
-from .const import (DOMAIN, SIGNAL_DEVICE_UPDATE, SIGNAL_NEW_DEVICE,
-                    SIGNAL_SOUND_START)
+from .const import (CONF_PATCHED_LAMPS, DOMAIN, SIGNAL_DEVICE_UPDATE, SIGNAL_NEW_DEVICE,
+                    SIGNAL_SOUND_START, patched_lamps)
 from .server import EW202WServer
 
 _LOGGER = logging.getLogger(__name__)
@@ -33,6 +33,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
                             async_add_entities: AddEntitiesCallback) -> None:
     server: EW202WServer = hass.data[DOMAIN][entry.entry_id]
     known: set[str] = set()
+    patched = patched_lamps(entry.options.get(CONF_PATCHED_LAMPS, ""))
 
     @callback
     def _add(device_id: str) -> None:
@@ -40,7 +41,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
             async_dispatcher_send(hass, SIGNAL_DEVICE_UPDATE.format(device_id))
             return
         known.add(device_id)
-        async_add_entities([EW202WLight(server, device_id)])
+        async_add_entities([EW202WLight(server, device_id, device_id in patched)])
 
     entry.async_on_unload(async_dispatcher_connect(hass, SIGNAL_NEW_DEVICE, _add))
     for device_id in list(server.devices):
@@ -57,11 +58,11 @@ class EW202WLight(LightEntity):
     _attr_supported_features = LightEntityFeature.EFFECT
     _attr_should_poll = False
 
-    def __init__(self, server: EW202WServer, device_id: str) -> None:
+    def __init__(self, server: EW202WServer, device_id: str, patched_firmware: bool) -> None:
         self._server = server
         self._device_id = device_id
         self._attr_unique_id = f"ew202w_{device_id}"
-        self._attr_effect_list = effects.effect_list()
+        self._attr_effect_list = effects.effect_list(patched_firmware)
         self._attr_device_info = {
             "identifiers": {(DOMAIN, device_id)},
             "name": f"Uyku Işığı {device_id[-4:]}",
@@ -131,7 +132,7 @@ class EW202WLight(LightEntity):
 
     def _paused_by_button(self, animating: bool) -> None:
         """Lamba tuşla kapatıldı: efekti durdur, tekrar açılınca sürdürmek için hatırla."""
-        effect = self._effect if animating or self._effect == effects.BUILTIN_FLOW else None
+        effect = self._effect if animating or self._effect in effects.BUILTIN_COLOR_IDS else None
         if effect or self._sound_was_on:
             self._paused = {"effect": effect, "sound": self._sound_was_on}
             self._paused_at = time.monotonic()
@@ -229,9 +230,10 @@ class EW202WLight(LightEntity):
             self._stop_anim()
             self._effect = effect
             mix["light_on"] = True
-            if effect == effects.BUILTIN_FLOW:
+            if effect in effects.BUILTIN_COLOR_IDS:
                 mix["sound_on"] = False  # dahili akış düz ışık komutudur, sesi keser
-                body = P.light_body(P.LIGHT_ON, self._bri_pct(), P.COLOR_FLOW)
+                body = P.light_body(P.LIGHT_ON, self._bri_pct(),
+                                    effects.BUILTIN_COLOR_IDS[effect])
                 if await self._server.send_light(self._device_id, body):
                     self._is_on = True
                     self.async_write_ha_state()

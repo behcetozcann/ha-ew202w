@@ -18,6 +18,12 @@ SERVICE_SEND_RAW = "send_raw"
 EVENT_STATE_CHANGED = f"{DOMAIN}_state_changed"
 
 CONF_SOUND_NAMES = "sound_names"
+CONF_PATCHED_LAMPS = "patched_lamps"
+
+
+def patched_lamps(option_text: str) -> set[str]:
+    """Yamalı yazılım yüklü lamba kimlikleri (satır başına bir kimlik)."""
+    return {line.strip() for line in option_text.splitlines() if line.strip()}
 
 # Lambadaki sesler: musicId = /spiffs/<id>.MP3. Adlar seçeneklerden lambaya özel verilebilir.
 SOUND_IDS = range(31131, 31149)

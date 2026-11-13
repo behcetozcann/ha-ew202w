@@ -75,6 +75,15 @@ python tools/provision.py --ssid "YourWifi" --pass "YourPassword" --host 192.168
 - Sound sources are named `Ses <number>` by default. Per-lamp names can be set in the
   integration's options, one per line: `<lamp id>:<sound number>=<name>`.
 
+## New in 0.3.8
+
+- The server enables TCP keepalive on each lamp connection. A lamp that drops off Wi-Fi
+  without closing the socket now shows as unavailable within about 90 s instead of
+  staying "on" forever. Connect/disconnect lines are logged at warning level.
+- New option: lamps with patched firmware (one lamp id per line). Those lamps get a second
+  built-in flow effect, `Okyanus (Dahili)` (colorId 10). Do not list a lamp with stock
+  firmware: there colorId 10 turns the light off.
+
 ## New in 0.3.5
 
 - Sound and a fixed light colour now work together: both are applied with the lamp's

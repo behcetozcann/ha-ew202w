@@ -17,8 +17,11 @@ RAINBOW = [(255, 0, 0), (255, 110, 0), (255, 220, 0), (0, 255, 0),
            (0, 160, 255), (40, 0, 255), (160, 0, 255)]
 
 
-# Lambanın kendi yazılımındaki akış modu (colorId 9); kare gönderilmez
+# Lambanın kendi yazılımındaki akış modları; kare gönderilmez, yalnız colorId gider.
+# Okyanus (colorId 10) yalnız yamalı yazılımda vardır; stok yazılımda 10 lambayı kapatır.
 BUILTIN_FLOW = "Akış (Dahili)"
+BUILTIN_OCEAN = "Okyanus (Dahili)"
+BUILTIN_COLOR_IDS = {BUILTIN_FLOW: 9, BUILTIN_OCEAN: 10}
 
 # Ortam efektleri: ad -> (palet [(R,G,B,W)], kare aralığı sn, en az / en çok parlaklık %).
 # Lamba her komutta ~600 ms yumuşak geçiş yaptığı için yavaş paletler akıcı görünür.
@@ -52,8 +55,9 @@ SUN_STOPS = [(0.0, 255, 30, 0, 0, 1), (0.5, 255, 120, 20, 0, 40),
 HUE_STYLE = list(AMBIENT) + [SPARKLE, PRISM, SUNRISE, SUNSET]
 
 
-def effect_list() -> list[str]:
-    return ANIMATED + [BUILTIN_FLOW] + HUE_STYLE
+def effect_list(patched_firmware: bool) -> list[str]:
+    builtin = [BUILTIN_FLOW, BUILTIN_OCEAN] if patched_firmware else [BUILTIN_FLOW]
+    return ANIMATED + builtin + HUE_STYLE
 
 
 def is_animated(name: str) -> bool:

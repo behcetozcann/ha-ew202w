@@ -34,7 +34,6 @@ LIGHT_OFF = 0
 LIGHT_ON = 1
 LIGHT_BRIGHTNESS = 2
 COLOR_CUSTOM = 255  # colorId=255 => RGBW serbest renk
-COLOR_FLOW = 9      # colorId=9 => lambanın dahili akış (renk döngüsü) modu
 
 MAX_VOLUME = 16
 UPDATE_BODY_SIZE = 133

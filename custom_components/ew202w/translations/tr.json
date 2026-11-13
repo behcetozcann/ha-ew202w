@@ -17,9 +17,10 @@
     "step": {
       "init": {
         "title": "Ses adları",
-        "description": "Her satıra bir ad yazın. Biçim: LAMBA_KIMLIGI:SES_NUMARASI=AD — örnek: abc123lampid:31132=Beyaz Gürültü",
+        "description": "Her satıra bir ad yazın. Biçim: LAMBA_KIMLIGI:SES_NUMARASI=AD — örnek: abc123lampid:31132=Beyaz Gürültü Yamalı lambalar alanına yalnız yamalı yazılım yüklü lambaların kimliklerini yazın; bu lambalarda Okyanus efekti görünür.",
         "data": {
-          "sound_names": "Lambaya özel ses adları"
+          "sound_names": "Lambaya özel ses adları",
+          "patched_lamps": "Yamalı yazılım yüklü lambalar (satır başına bir kimlik)"
         }
       }
     }
