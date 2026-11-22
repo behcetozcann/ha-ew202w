@@ -13,8 +13,8 @@ from homeassistant.helpers.dispatcher import (async_dispatcher_connect,
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import protocol as P
-from .const import (CONF_SOUND_NAMES, DOMAIN, SIGNAL_DEVICE_UPDATE, SIGNAL_NEW_DEVICE,
-                    SIGNAL_SOUND_START, sound_names)
+from .const import (CONF_PATCHED_LAMPS, CONF_SOUND_NAMES, DOMAIN, SIGNAL_DEVICE_UPDATE,
+                    SIGNAL_NEW_DEVICE, SIGNAL_SOUND_START, patched_lamps, sound_names)
 from .server import EW202WServer
 
 
@@ -22,13 +22,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
                             async_add_entities: AddEntitiesCallback) -> None:
     server: EW202WServer = hass.data[DOMAIN][entry.entry_id]
     known: set[str] = set()
+    patched = patched_lamps(entry.options.get(CONF_PATCHED_LAMPS, ""))
 
     @callback
     def _add(device_id: str) -> None:
         if device_id not in known:
             known.add(device_id)
             sounds = sound_names(entry.options.get(CONF_SOUND_NAMES, ""), device_id)
-            async_add_entities([EW202WSoundPlayer(server, device_id, sounds)])
+            async_add_entities([EW202WSoundPlayer(server, device_id, sounds,
+                                                  device_id in patched)])
 
     entry.async_on_unload(async_dispatcher_connect(hass, SIGNAL_NEW_DEVICE, _add))
     for device_id in list(server.devices):
@@ -47,10 +49,11 @@ class EW202WSoundPlayer(MediaPlayerEntity):
                                 | MediaPlayerEntityFeature.SELECT_SOURCE)
 
     def __init__(self, server: EW202WServer, device_id: str,
-                 sounds: dict[str, int]) -> None:
+                 sounds: dict[str, int], patched_firmware: bool = False) -> None:
         self._server = server
         self._device_id = device_id
         self._sounds = sounds
+        self._patched = patched_firmware
         self._attr_source_list = list(sounds)
         self._attr_unique_id = f"ew202w_{device_id}_sound"
         self._attr_device_info = {"identifiers": {(DOMAIN, device_id)}}
@@ -86,7 +89,15 @@ class EW202WSoundPlayer(MediaPlayerEntity):
         mix["sound_on"] = sound_on
         mix["transition_at"] = time.monotonic()
         mix["music_id"] = self._sounds[self._attr_source]
-        if await self._server.send_scene(self._device_id):
+        if self._patched:
+            if sound_on:
+                sent = await self._server.send_music(
+                    self._device_id, P.MUSIC_PLAY, mix["music_id"], mix["volume"])
+            else:
+                sent = await self._server.send_music(self._device_id, P.MUSIC_STOP)
+        else:
+            sent = await self._server.send_scene(self._device_id)
+        if sent:
             self._playing = sound_on
             self.async_write_ha_state()
 
@@ -102,7 +113,11 @@ class EW202WSoundPlayer(MediaPlayerEntity):
         await self.async_media_play()
 
     async def async_set_volume_level(self, volume: float) -> None:
-        self._server.mix(self._device_id)["volume"] = max(1, round(volume * P.MAX_VOLUME))
+        vol = max(1, round(volume * P.MAX_VOLUME))
+        self._server.mix(self._device_id)["volume"] = vol
         if self._playing:
-            await self._server.send_scene(self._device_id)
+            if self._patched:
+                await self._server.send_music(self._device_id, P.MUSIC_VOLUME, 0, vol)
+            else:
+                await self._server.send_scene(self._device_id)
         self.async_write_ha_state()

@@ -108,6 +108,12 @@ class EW202WServer:
     async def send_light(self, device_id: str, body: bytes) -> bool:
         return await self.send(device_id, P.MSG_LIGHT, body)
 
+    async def send_music(self, device_id: str, operation: int,
+                         music_id: int = 0, volume: int = 0) -> bool:
+        """Yalnız sesi kontrol eder (msgType 5398); ışığa ve akış efektine dokunmaz."""
+        return await self.send(device_id, P.MSG_MUSIC,
+                               P.music_body(operation, music_id, volume))
+
     async def send(self, device_id: str, msg_type: int, body: bytes,
                    frame_type: int = P.FRAME_REQUEST) -> bool:
         dev = self.devices.get(device_id)

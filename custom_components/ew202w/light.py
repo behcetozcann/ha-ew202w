@@ -51,6 +51,7 @@ class EW202WLight(LightEntity):
     def __init__(self, server: EW202WServer, device_id: str, patched_firmware: bool) -> None:
         self._server = server
         self._device_id = device_id
+        self._patched = patched_firmware
         self._attr_unique_id = f"ew202w_{device_id}"
         self._effect_ids = effects.effect_color_ids(patched_firmware)
         self._attr_effect_list = list(self._effect_ids)
@@ -130,6 +131,17 @@ class EW202WLight(LightEntity):
         """Lamba tuşla açıldı: kapanmadan önceki efekt ve ses sürdürülür."""
         paused, self._paused = self._paused, None
         mix.update(light_on=True, sound_on=paused["sound"])
+        if self._patched:
+            if paused["effect"]:
+                self.hass.async_create_task(self.async_turn_on(effect=paused["effect"]))
+            else:
+                self._is_on = True
+                r, g, b, w = self._rgbw
+                self.hass.async_create_task(self._send(r, g, b, w, self._bri_pct()))
+            if paused["sound"] and mix["music_id"]:
+                self.hass.async_create_task(self._server.send_music(
+                    self._device_id, P.MUSIC_PLAY, mix["music_id"], mix["volume"]))
+            return
         if paused["effect"]:
             self.hass.async_create_task(self.async_turn_on(effect=paused["effect"]))
         else:
@@ -138,8 +150,10 @@ class EW202WLight(LightEntity):
 
     @callback
     def _sound_starting(self) -> None:
-        """Ses başlarken: dahili akış efekti sesle birlikte çalışamaz (sahne komutunda
-        colorId yok), sabit renge dönülür."""
+        """Ses başlarken: stok yazılımda sahne komutu efekti bozar; yamalı yazılımda 5398
+        ışığa hiç dokunmadığı için efekt aynen sürer."""
+        if self._patched:
+            return
         self._effect = None
         self._server.mix(self._device_id).update(
             light_on=self._is_on, brightness=self._bri_pct(), rgbw=tuple(self._rgbw))
@@ -173,7 +187,8 @@ class EW202WLight(LightEntity):
         if effect in self._effect_ids:
             self._effect = effect
             mix["light_on"] = True
-            mix["sound_on"] = False  # dahili akış düz ışık komutudur, sesi keser
+            if not self._patched:
+                mix["sound_on"] = False  # stok yazılımda 5394 sesi keser; yamalıda kesmez
             body = P.light_body(P.LIGHT_ON, self._bri_pct(), self._effect_ids[effect])
             if await self._server.send_light(self._device_id, body):
                 self._is_on = True
@@ -184,7 +199,7 @@ class EW202WLight(LightEntity):
         self._effect = None
         r, g, b, w = self._rgbw
         mix.update(light_on=True, brightness=self._bri_pct(), rgbw=tuple(self._rgbw))
-        if mix["sound_on"]:  # ses çalıyor: sesi kesmeyen sahne komutu
+        if mix["sound_on"] and not self._patched:  # stok yazılımda sesi kesmeyen sahne komutu
             sent = await self._server.send_scene(self._device_id)
         else:
             sent = await self._send(r, g, b, w, self._bri_pct())
@@ -197,7 +212,7 @@ class EW202WLight(LightEntity):
         self._effect = None
         mix = self._server.mix(self._device_id)
         mix["light_on"] = False
-        if mix["sound_on"]:
+        if mix["sound_on"] and not self._patched:
             sent = await self._server.send_scene(self._device_id)
         else:
             body = P.light_body(P.LIGHT_OFF, 0, P.COLOR_CUSTOM, 0, 0, 0, 0)

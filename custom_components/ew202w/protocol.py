@@ -24,6 +24,7 @@ MSG_LIGHT = 5394
 MSG_REGISTER = 1028
 MSG_TIME = 513
 MSG_SCENE = 5392          # ışık + ses birlikte (uyku yardımı sahnesi)
+MSG_MUSIC = 5398          # yalnız ses kontrolü (ışığa/efekte dokunmaz)
 MSG_WORK_MODE = 5424      # lambanın durum bildirimi (POST)
 MSG_UPDATE = 1284         # yazılım güncelleme; lamba yalnız POST (ftype=1) olarak işler
 
@@ -34,6 +35,11 @@ LIGHT_OFF = 0
 LIGHT_ON = 1
 LIGHT_BRIGHTNESS = 2
 COLOR_CUSTOM = 255  # colorId=255 => RGBW serbest renk
+
+# müzik işlemi (msgType 5398)
+MUSIC_STOP = 0
+MUSIC_PLAY = 1
+MUSIC_VOLUME = 2  # yamalı yazılımda şarkıyı baştan başlatmadan yalnız ses düzeyi
 
 MAX_VOLUME = 16
 UPDATE_BODY_SIZE = 133
@@ -167,6 +173,12 @@ def scene_body(sound_on: bool, music_id: int, volume: int, light_on: bool,
                      1 if light_on else 0, max(1, min(int(brightness), 100)),
                      red, green, blue, white, 0])
             + struct.pack(">H", stop_minutes & 0xFFFF))
+
+
+def music_body(operation: int, music_id: int = 0, volume: int = 0) -> bytes:
+    """Yalnız müzik komutu gövdesi (msgType 5398, ışığa dokunmaz)."""
+    vol = max(0, min(int(volume), MAX_VOLUME))
+    return bytes([operation & 0xFF]) + struct.pack(">H", music_id & 0xFFFF) + bytes([vol])
 
 
 def update_body(url: str, current_version: int = 146, target_version: int = 147,
