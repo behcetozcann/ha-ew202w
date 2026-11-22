@@ -1,5 +1,6 @@
 """EW202W ışık platformu."""
 from __future__ import annotations
+import asyncio
 import time
 
 from homeassistant.components.light import (ColorMode, LightEntity,
@@ -54,7 +55,9 @@ class EW202WLight(LightEntity):
         self._patched = patched_firmware
         self._attr_unique_id = f"ew202w_{device_id}"
         self._effect_ids = effects.effect_color_ids(patched_firmware)
-        self._attr_effect_list = list(self._effect_ids)
+        self._attr_effect_list = list(self._effect_ids) + (
+            [effects.SLEEP_FADE_EFFECT] if patched_firmware else []
+        )
         self._attr_device_info = {
             "identifiers": {(DOMAIN, device_id)},
             "name": f"Uyku Işığı {device_id[-4:]}",
@@ -67,6 +70,7 @@ class EW202WLight(LightEntity):
         self._effect: str | None = None
         self._paused: dict | None = None
         self._sound_was_on = False
+        self._fade_task: asyncio.Task | None = None
 
     @property
     def available(self) -> bool:
@@ -119,8 +123,40 @@ class EW202WLight(LightEntity):
         self._sound_was_on = state["music_playing"]
         self.async_write_ha_state()
 
+    def _cancel_fade(self) -> None:
+        if self._fade_task and not self._fade_task.done():
+            self._fade_task.cancel()
+        self._fade_task = None
+
+    async def _run_sleep_fade(self, start_bri_pct: int) -> None:
+        """Philips Hue Go to Sleep: 15 dk boyunca gün batımından kırmızı kora inip kapanır."""
+        try:
+            for step in range(effects.SLEEP_FADE_STEPS + 1):
+                progress = step / effects.SLEEP_FADE_STEPS
+                r, g, b, w, bri = effects.sleep_fade_frame(progress, start_bri_pct)
+                self._rgbw = (r, g, b, w)
+                self._brightness = round(bri / 100 * 255)
+                await self._send(r, g, b, w, bri)
+                self._is_on = True
+                self.async_write_ha_state()
+                if step < effects.SLEEP_FADE_STEPS:
+                    await asyncio.sleep(effects.SLEEP_FADE_INTERVAL_SEC)
+            # 15 dk bitti: yalnız ışığı kapat (beyaz gürültü çalmaya devam eder)
+            self._effect = None
+            self._server.mix(self._device_id)["light_on"] = False
+            body = P.light_body(P.LIGHT_OFF, 0, P.COLOR_CUSTOM, 0, 0, 0, 0)
+            if await self._server.send_light(self._device_id, body):
+                self._is_on = False
+                self.async_write_ha_state()
+        except asyncio.CancelledError:
+            pass
+
+    async def async_will_remove_from_hass(self) -> None:
+        self._cancel_fade()
+
     def _paused_by_button(self) -> None:
         """Lamba tuşla kapatıldı: tekrar açılınca efekti ve sesi sürdürmek için hatırla."""
+        self._cancel_fade()
         if self._effect or self._sound_was_on:
             self._paused = {"effect": self._effect, "sound": self._sound_was_on}
         self._effect = None
@@ -184,6 +220,15 @@ class EW202WLight(LightEntity):
         if not effect and self._effect and "rgbw_color" not in kwargs:
             effect = self._effect  # yalnız parlaklık değişti: efekt yeni parlaklıkla sürsün
         mix = self._server.mix(self._device_id)
+        self._cancel_fade()
+        if effect == effects.SLEEP_FADE_EFFECT and self._patched:
+            self._effect = effect
+            mix["light_on"] = True
+            self._is_on = True
+            self._fade_task = self.hass.async_create_task(
+                self._run_sleep_fade(self._bri_pct()))
+            self.async_write_ha_state()
+            return
         if effect in self._effect_ids:
             self._effect = effect
             mix["light_on"] = True
@@ -208,6 +253,7 @@ class EW202WLight(LightEntity):
             self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs) -> None:
+        self._cancel_fade()
         self._paused = None
         self._effect = None
         mix = self._server.mix(self._device_id)
