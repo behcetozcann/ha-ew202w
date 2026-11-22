@@ -10,7 +10,7 @@ Sabit renkler efekt değildir; HA ışık penceresindeki sık kullanılan renkle
 from __future__ import annotations
 
 STOCK_EFFECTS = {"Akış": 9}
-PATCHED_EFFECTS = {"Ateş": 13, "Okyanus": 14, "Gün Doğumu": 15, "Büyü": 16}
+PATCHED_EFFECTS = {"Ateş": 13, "Okyanus": 14, "Gün Doğumu": 15, "Büyü": 16, "Uyku Nefesi": 17}
 
 
 def effect_color_ids(patched_firmware: bool) -> dict[str, int]:
