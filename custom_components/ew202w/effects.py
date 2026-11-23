@@ -14,10 +14,12 @@ PATCHED_EFFECTS = {
     "Ateş": 13,
     "Okyanus": 14,
     "Gün Doğumu": 15,
-    "Gece Fırtınası": 16,
+    "Mum Işığı": 16,
     "Kırmızı Alacakaranlık": 17,
     "Kuzey Işıkları": 18,
     "Kalp Atışı": 19,
+    "Altın Saat": 20,
+    "Orman Zen": 21,
 }
 SLEEP_FADE_EFFECT = "Uykuya Dal (15 dk)"
 EFFECT_PREVIEW_RGBW: dict[str, tuple[int, int, int, int]] = {
@@ -25,10 +27,12 @@ EFFECT_PREVIEW_RGBW: dict[str, tuple[int, int, int, int]] = {
     "Ateş": (255, 60, 0, 0),
     "Okyanus": (0, 175, 255, 0),
     "Gün Doğumu": (255, 165, 50, 0),
-    "Gece Fırtınası": (90, 140, 255, 0),
+    "Mum Işığı": (255, 125, 15, 0),
     "Kırmızı Alacakaranlık": (220, 20, 15, 0),
     "Kuzey Işıkları": (0, 220, 145, 0),
     "Kalp Atışı": (245, 38, 92, 0),
+    "Altın Saat": (255, 130, 55, 0),
+    "Orman Zen": (55, 185, 50, 0),
     SLEEP_FADE_EFFECT: (255, 85, 6, 0),
 }
 SLEEP_FADE_STEPS = 45          # 45 adım × 20 sn = 15 dakika (flash dostu, sıfır ses kesintisi)
