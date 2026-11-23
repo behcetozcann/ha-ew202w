@@ -119,6 +119,15 @@ class EW202WLight(LightEntity):
             self._is_on = device_on
             if device_on and state["brightness"]:
                 self._brightness = round(state["brightness"] / 100 * 255)
+            if device_on and not (self._fade_task and not self._fade_task.done()):
+                cid = state.get("color_id")
+                eff = effects.effect_name_for_color_id(cid, self._patched) if cid is not None else None
+                if eff:
+                    self._effect = eff
+                    self._rgbw = effects.effect_preview_rgbw(eff)
+                elif cid == P.COLOR_CUSTOM and state.get("rgbw"):
+                    self._effect = None
+                    self._rgbw = tuple(state["rgbw"])
             mix["light_on"] = device_on
         self._sound_was_on = state["music_playing"]
         self.async_write_ha_state()
@@ -231,6 +240,7 @@ class EW202WLight(LightEntity):
             return
         if effect in self._effect_ids:
             self._effect = effect
+            self._rgbw = effects.effect_preview_rgbw(effect)
             mix["light_on"] = True
             if not self._patched:
                 mix["sound_on"] = False  # stok yazılımda 5394 sesi keser; yamalıda kesmez

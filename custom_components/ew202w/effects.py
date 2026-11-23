@@ -14,10 +14,19 @@ PATCHED_EFFECTS = {
     "Ateş": 13,
     "Okyanus": 14,
     "Gün Doğumu": 15,
-    "Büyü": 16,
+    "Mum Işığı": 16,
     "Kırmızı Alacakaranlık": 17,
 }
 SLEEP_FADE_EFFECT = "Uykuya Dal (15 dk)"
+EFFECT_PREVIEW_RGBW: dict[str, tuple[int, int, int, int]] = {
+    "Akış": (180, 90, 255, 0),
+    "Ateş": (255, 60, 0, 0),
+    "Okyanus": (0, 175, 255, 0),
+    "Gün Doğumu": (255, 165, 50, 0),
+    "Mum Işığı": (255, 115, 10, 0),
+    "Kırmızı Alacakaranlık": (220, 20, 15, 0),
+    SLEEP_FADE_EFFECT: (255, 85, 6, 0),
+}
 SLEEP_FADE_STEPS = 45          # 45 adım × 20 sn = 15 dakika (flash dostu, sıfır ses kesintisi)
 SLEEP_FADE_INTERVAL_SEC = 20
 SLEEP_FADE_KEYFRAMES = [       # (ilerleme 0..1, R, G, B, parlaklık çarpanı)
@@ -49,3 +58,16 @@ def sleep_fade_frame(progress: float, start_bri_pct: int) -> tuple[int, int, int
 def effect_color_ids(patched_firmware: bool) -> dict[str, int]:
     """Efekt adı -> lambaya gönderilecek colorId."""
     return {**STOCK_EFFECTS, **PATCHED_EFFECTS} if patched_firmware else dict(STOCK_EFFECTS)
+
+
+def effect_name_for_color_id(color_id: int, patched_firmware: bool) -> str | None:
+    """Lambadan gelen colorId'yi bilinen efekt adına çevirir."""
+    for name, cid in effect_color_ids(patched_firmware).items():
+        if cid == color_id:
+            return name
+    return None
+
+
+def effect_preview_rgbw(effect_name: str) -> tuple[int, int, int, int]:
+    """HA kartında efektin temsil rengini göstermek için imza RGBW değeri."""
+    return EFFECT_PREVIEW_RGBW.get(effect_name, (255, 180, 100, 0))
